@@ -1,0 +1,33 @@
+name: Validate Skills
+
+on:
+  pull_request:
+    paths:
+      - 'skills/**'
+      - 'meta/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Validate all changed SKILL.md files
+        run: |
+          ERRORS=0
+          for f in $(git diff --name-only origin/main...HEAD | grep 'SKILL\.md$'); do
+            echo "Validating $f..."
+            if ! python3 meta/skill-creator/scripts/validate_skill.py "$f"; then
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+          if [ $ERRORS -gt 0 ]; then
+            echo "❌ $ERRORS skill(s) failed validation"
+            exit 1
+          fi
+          echo "✅ All skills passed validation"
