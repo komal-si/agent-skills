@@ -39,21 +39,46 @@ Only include `env` if the skill needs environment variables.
 
 ## Loading Skills from External Directories
 
-If agent workspaces have skills that the main agent also needs, add to `skills.load.extraDirs`:
+Add to `skills.load.extraDirs`. Use org-based paths for skill isolation:
 
+**Local machine paths:**
 ```json
 "skills": {
   "load": {
     "extraDirs": [
       "/Users/komal/Desktop/openclaw-automation/agent-skills/meta",
-      "/Users/komal/Desktop/openclaw-automation/agent-skills/skills",
-      "/Users/komal/Desktop/openclaw-automation/{agent-id}-workspace/skills"
+      "/Users/komal/Desktop/openclaw-automation/agent-skills/orgs/{org}/skills",
+      "/Users/komal/Desktop/openclaw-automation/agent-skills/skills"
     ]
   }
 }
 ```
 
+**Daytona sandbox paths:**
+```json
+"skills": {
+  "load": {
+    "extraDirs": [
+      "/home/daytona/agent-skills/meta",
+      "/home/daytona/agent-skills/orgs/{org}/skills",
+      "/home/daytona/agent-skills/skills"
+    ]
+  }
+}
+```
+
+For multi-org on same machine, add multiple org skill dirs:
+```json
+"extraDirs": [
+  "/path/to/agent-skills/meta",
+  "/path/to/agent-skills/orgs/ruh/skills",
+  "/path/to/agent-skills/orgs/acme/skills",
+  "/path/to/agent-skills/skills"
+]
+```
+
 Skills in `extraDirs` show as source `openclaw-extra` in `openclaw skills list`.
+Skill names don't collide because of the org prefix (ruh-jira-monitor vs acme-jira-monitor).
 
 ## Channel Bindings
 

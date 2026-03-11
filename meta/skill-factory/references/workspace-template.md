@@ -1,12 +1,12 @@
 # Workspace Template
 
 Use these templates when creating a new agent workspace for multi-agent architectures.
-Fill in `{placeholders}` from the blueprint.
+Fill in `{placeholders}` from the blueprint. All names are org-prefixed.
 
 ## Directory Structure
 
 ```
-{agent-id}-workspace/
+{org}-{agent-id}-workspace/
 ├── SOUL.md
 ├── IDENTITY.md
 ├── AGENTS.md
@@ -14,9 +14,11 @@ Fill in `{placeholders}` from the blueprint.
 ├── TOOLS.md
 ├── memory/
 └── skills/
-    └── {skill-name}/
+    └── {org}-{skill-name}/
         └── SKILL.md
 ```
+
+This is the LOCAL runtime workspace (NOT in git). Skills are copied from the repo.
 
 ## SOUL.md
 

@@ -23,10 +23,20 @@ Execute these 9 steps in sequence. Complete each before moving to the next.
 
 ### Step 1: Requirement Understanding
 
-Extract the full context from the user's requirement:
+**First, ask for the organization:**
+"Which organization is this for?" (e.g., `ruh`, `acme`, or type a new org prefix)
+
+The org prefix is MANDATORY — it isolates skills and credentials between organizations.
+- Org prefix: 2-10 lowercase chars, validated against `^[a-z][a-z0-9]{1,9}$`
+- First time for a new org → will create `orgs/{org}/` folder structure
+- All skill names will be prefixed with `{org}-` to prevent collisions
+- All agent IDs will be prefixed with `{org}-` for the same reason
+
+Then extract the full context from the user's requirement:
 
 | Field | Extract |
 |-------|---------|
+| **Organization** | The org prefix (asked above). REQUIRED. |
 | **Primary objective** | What is the end outcome? One verb-first sentence. |
 | **Triggers** | What starts this? (command, event, cron schedule, webhook) |
 | **External systems** | Which services are involved? (Jira, GitHub, Slack, DB, APIs) |
@@ -101,7 +111,7 @@ For each skill (reused, adapted, or new), define:
 
 | Field | Value |
 |-------|-------|
-| **name** | kebab-case, max 64 chars |
+| **name** | `{org}-{skill-name}` kebab-case, max 64 chars. ALWAYS include org prefix. |
 | **goal** | What this skill does (verb-first sentence) |
 | **inputs** | What data this skill receives |
 | **outputs** | What data this skill produces |
@@ -138,7 +148,7 @@ For each agent, define:
 
 | Field | Value |
 |-------|-------|
-| **id** | kebab-case agent identifier |
+| **id** | `{org}-{agent-role}` kebab-case. ALWAYS include org prefix. |
 | **role** | One-sentence description of this agent's responsibility |
 | **model** | Which model to use (default: openai-codex/gpt-5.4) |
 | **skills** | Which skills are assigned to this agent |
@@ -177,27 +187,47 @@ Define the execution sequence.
 ### Step 8: OpenClaw Structure Generator
 
 Generate the actual folder structure that OpenClaw will use.
+ALL skills go under `agent-skills/orgs/{org}/skills/` — NEVER under `agent-skills/skills/` (that's legacy).
 
 **For single-skill:**
 ```
-agent-skills/skills/{skill-name}/
+agent-skills/orgs/{org}/skills/{org}-{skill-name}/
 └── SKILL.md
+agent-skills/orgs/{org}/agent-templates/{org}-main/
+├── .env.example
+├── openclaw-entries.json
+└── README.md
 ```
 
 **For multi-skill single agent:**
 ```
-agent-skills/skills/{skill-1}/
+agent-skills/orgs/{org}/skills/{org}-{skill-1}/
 └── SKILL.md
-agent-skills/skills/{skill-2}/
+agent-skills/orgs/{org}/skills/{org}-{skill-2}/
 └── SKILL.md
-agent-skills/skills/{orchestrator}/
+agent-skills/orgs/{org}/skills/{org}-{orchestrator}/
 └── SKILL.md
+agent-skills/orgs/{org}/agent-templates/{org}-main/
+├── .env.example
+├── openclaw-entries.json
+└── README.md
 ```
 Plus AGENTS.md workflow instructions.
 
 **For multi-agent:**
 ```
-openclaw-automation/{agent-id}-workspace/
+agent-skills/orgs/{org}/skills/{org}-{skill-1}/
+└── SKILL.md
+agent-skills/orgs/{org}/skills/{org}-{skill-2}/
+└── SKILL.md
+agent-skills/orgs/{org}/agent-templates/{org}-{agent-id}/
+├── .env.example
+├── openclaw-entries.json
+└── README.md
+```
+Plus agent workspace created locally (NOT in git):
+```
+{workspace-base}/{org}-{agent-id}-workspace/
 ├── SOUL.md
 ├── IDENTITY.md
 ├── AGENTS.md
@@ -205,10 +235,19 @@ openclaw-automation/{agent-id}-workspace/
 ├── TOOLS.md
 ├── memory/
 └── skills/
-    ├── {skill-1}/SKILL.md
-    └── {skill-2}/SKILL.md
+    ├── {org}-{skill-1}/SKILL.md    ← copied from repo
+    └── {org}-{skill-2}/SKILL.md
 ```
 One workspace per agent. Plus openclaw.json entries.
+
+**Org folder setup (first time):**
+If `orgs/{org}/` doesn't exist, create:
+```
+agent-skills/orgs/{org}/
+├── org.json       ← {"id": "{org}", "name": "{Org Name}", "owner": "{github-user}", "created": "{date}", "prefix": "{org}"}
+├── skills/        ← org-scoped skills
+└── agent-templates/  ← deployment configs per agent
+```
 
 OpenClaw does NOT support: agent_config.yaml, workflows/ folder, sub_agents/ folder, tools/ folder with Python files, sessions/ or logs/ in workspace. Workflows go in AGENTS.md. Agent config goes in openclaw.json.
 
@@ -241,6 +280,7 @@ After completing all 9 steps, output the structured JSON spec:
 ```json
 {
   "requirement": {
+    "org": "string — org prefix (mandatory, e.g. ruh, acme)",
     "goal": "string",
     "triggers": ["string"],
     "frequency": "on-demand | cron-expression | event-driven",
@@ -315,4 +355,6 @@ For single-skill architecture, the `agents` array has one entry (the existing ma
 ## Handoff
 
 After outputting the structured JSON, trigger the `skill-factory` skill.
-Tell user: "Blueprint ready. Building skills..."
+Tell user: "Blueprint ready. Building skills for org '{org}'..."
+
+The flow continues: skill-factory → agent-setup (credential collection) → done.

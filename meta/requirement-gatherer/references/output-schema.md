@@ -5,6 +5,7 @@
 ```json
 {
   "requirement": {
+    "org": "string — org prefix (mandatory, e.g. ruh, acme)",
     "goal": "string — verb-first present tense",
     "triggers": ["string — event/command that starts this"],
     "frequency": "on-demand | <cron expression> | event-driven",
@@ -89,7 +90,9 @@
 - `agents` must have at least 1 entry
 - For single-skill and multi-skill: agents[0].id should be "main" (existing agent)
 - For multi-agent: each agent needs unique id, workspace_files are required for new agents
-- `skills[].name` must be valid kebab-case matching `^[a-z][a-z0-9-]*$`
+- `requirement.org` must be present, 2-10 lowercase chars matching `^[a-z][a-z0-9]{1,9}$`
+- `skills[].name` must be org-prefixed kebab-case matching `^{org}-[a-z][a-z0-9-]*$`
+- For multi-agent: `agents[].id` must be org-prefixed: `^{org}-[a-z][a-z0-9-]*$`
 - `skills[].steps` must have at least 1 item
 - `env_vars[].name` must be SCREAMING_SNAKE_CASE
 - `workflow.steps` required for multi-skill and multi-agent, optional for single-skill
@@ -104,6 +107,7 @@ Requirement: "Monitor a GitHub repo for new PRs and notify me on Telegram"
 ```json
 {
   "requirement": {
+    "org": "ruh",
     "goal": "Monitor GitHub repository for new pull requests and send Telegram notifications",
     "triggers": ["cron schedule every 15 minutes"],
     "frequency": "*/15 * * * *",
@@ -126,11 +130,11 @@ Requirement: "Monitor a GitHub repo for new PRs and notify me on Telegram"
       "workspace_files": {},
       "skills": [
         {
-          "name": "github-pr-notifier",
+          "name": "ruh-github-pr-notifier",
           "goal": "Poll GitHub for new PRs and send Telegram notification",
           "steps": [
             { "order": 1, "action": "Fetch open PRs from GitHub API", "tool_type": "api", "details": "GET /repos/{owner}/{repo}/pulls?state=open&sort=created" },
-            { "order": 2, "action": "Compare against last-seen PR IDs stored in state file", "tool_type": "file", "details": "Read/write ~/.openclaw/workspace/skills/github-pr-notifier/state.json" },
+            { "order": 2, "action": "Compare against last-seen PR IDs stored in state file", "tool_type": "file", "details": "Read/write ~/.openclaw/workspace/skills/ruh-github-pr-notifier/state.json" },
             { "order": 3, "action": "Send notification for each new PR via Telegram", "tool_type": "notification", "details": "Telegram Bot API sendMessage with PR title, author, URL" }
           ],
           "env_vars": [
@@ -146,17 +150,17 @@ Requirement: "Monitor a GitHub repo for new PRs and notify me on Telegram"
   ],
   "workflow": {
     "steps": [
-      { "order": 1, "agent": "main", "skill": "github-pr-notifier", "trigger": "cron every 15 min" }
+      { "order": 1, "agent": "main", "skill": "ruh-github-pr-notifier", "trigger": "cron every 15 min" }
     ]
   },
   "openclaw_config": {
     "agent_entries": [],
     "skill_entries": {
-      "github-pr-notifier": { "enabled": true, "env": { "GITHUB_TOKEN": "", "TELEGRAM_CHAT_ID": "" } }
+      "ruh-github-pr-notifier": { "enabled": true, "env": { "GITHUB_TOKEN": "", "TELEGRAM_CHAT_ID": "" } }
     },
     "bindings": [],
     "subagent_config": {},
-    "cron": [{ "schedule": "*/15 * * * *", "skill": "github-pr-notifier" }]
+    "cron": [{ "schedule": "*/15 * * * *", "skill": "ruh-github-pr-notifier" }]
   },
   "deployment": {
     "env_vars": [
@@ -176,6 +180,7 @@ Requirement: "Watch Jira tickets assigned to me, update their status, notify on 
 ```json
 {
   "requirement": {
+    "org": "ruh",
     "goal": "Watch Jira tickets, auto-update statuses, and notify via Slack and email",
     "triggers": ["cron every 30 minutes", "/jira-check command"],
     "frequency": "*/30 * * * *",
@@ -201,7 +206,7 @@ Requirement: "Watch Jira tickets assigned to me, update their status, notify on 
       "workspace_files": {},
       "skills": [
         {
-          "name": "jira-ticket-fetcher",
+          "name": "ruh-jira-ticket-fetcher",
           "goal": "Fetch Jira tickets assigned to current user",
           "steps": [
             { "order": 1, "action": "Query Jira API for tickets assigned to me with recent updates", "tool_type": "api", "details": "GET /rest/api/3/search?jql=assignee=currentUser() AND updated>=-30m" },
@@ -217,7 +222,7 @@ Requirement: "Watch Jira tickets assigned to me, update their status, notify on 
           "source": "new"
         },
         {
-          "name": "jira-status-updater",
+          "name": "ruh-jira-status-updater",
           "goal": "Update Jira ticket status via transitions",
           "steps": [
             { "order": 1, "action": "Get available transitions for the ticket", "tool_type": "api", "details": "GET /rest/api/3/issue/{key}/transitions" },
@@ -231,7 +236,7 @@ Requirement: "Watch Jira tickets assigned to me, update their status, notify on 
           "source": "new"
         },
         {
-          "name": "slack-notifier",
+          "name": "ruh-slack-notifier",
           "goal": "Send formatted notification to a Slack channel",
           "steps": [
             { "order": 1, "action": "Post message to Slack via webhook", "tool_type": "notification", "details": "POST to Slack incoming webhook URL with blocks payload" }
@@ -244,7 +249,7 @@ Requirement: "Watch Jira tickets assigned to me, update their status, notify on 
           "source": "new"
         },
         {
-          "name": "email-sender",
+          "name": "ruh-email-sender",
           "goal": "Send email notification via SMTP",
           "steps": [
             { "order": 1, "action": "Compose and send email via SMTP", "tool_type": "notification", "details": "SMTP connection using host/port/credentials, send HTML email" }
@@ -259,13 +264,13 @@ Requirement: "Watch Jira tickets assigned to me, update their status, notify on 
           "source": "new"
         },
         {
-          "name": "jira-update-workflow",
+          "name": "ruh-jira-update-workflow",
           "goal": "Orchestrate Jira monitoring: fetch tickets, update statuses, notify",
           "steps": [
-            { "order": 1, "action": "Use jira-ticket-fetcher to get recently updated tickets", "tool_type": "custom", "details": "Invoke jira-ticket-fetcher skill" },
-            { "order": 2, "action": "For tickets needing status change, use jira-status-updater", "tool_type": "custom", "details": "Invoke jira-status-updater skill per ticket" },
-            { "order": 3, "action": "Use slack-notifier to post update summary", "tool_type": "custom", "details": "Invoke slack-notifier with formatted summary" },
-            { "order": 4, "action": "Use email-sender for individual ticket notifications", "tool_type": "custom", "details": "Invoke email-sender per assignee" }
+            { "order": 1, "action": "Use ruh-jira-ticket-fetcher to get recently updated tickets", "tool_type": "custom", "details": "Invoke ruh-jira-ticket-fetcher skill" },
+            { "order": 2, "action": "For tickets needing status change, use ruh-jira-status-updater", "tool_type": "custom", "details": "Invoke ruh-jira-status-updater skill per ticket" },
+            { "order": 3, "action": "Use ruh-slack-notifier to post update summary", "tool_type": "custom", "details": "Invoke ruh-slack-notifier with formatted summary" },
+            { "order": 4, "action": "Use ruh-email-sender for individual ticket notifications", "tool_type": "custom", "details": "Invoke ruh-email-sender per assignee" }
           ],
           "env_vars": [],
           "inputs": "Triggered by cron or /jira-check command",
@@ -277,24 +282,24 @@ Requirement: "Watch Jira tickets assigned to me, update their status, notify on 
   ],
   "workflow": {
     "steps": [
-      { "order": 1, "agent": "main", "skill": "jira-ticket-fetcher", "trigger": "cron or /jira-check" },
-      { "order": 2, "agent": "main", "skill": "jira-status-updater", "trigger": "tickets needing update from step 1" },
-      { "order": 3, "agent": "main", "skill": "slack-notifier", "trigger": "after steps 1-2 complete" },
-      { "order": 4, "agent": "main", "skill": "email-sender", "trigger": "after steps 1-2 complete" }
+      { "order": 1, "agent": "main", "skill": "ruh-jira-ticket-fetcher", "trigger": "cron or /jira-check" },
+      { "order": 2, "agent": "main", "skill": "ruh-jira-status-updater", "trigger": "tickets needing update from step 1" },
+      { "order": 3, "agent": "main", "skill": "ruh-slack-notifier", "trigger": "after steps 1-2 complete" },
+      { "order": 4, "agent": "main", "skill": "ruh-email-sender", "trigger": "after steps 1-2 complete" }
     ]
   },
   "openclaw_config": {
     "agent_entries": [],
     "skill_entries": {
-      "jira-ticket-fetcher": { "enabled": true, "env": { "JIRA_API_TOKEN": "", "JIRA_BASE_URL": "", "JIRA_USER": "" } },
-      "jira-status-updater": { "enabled": true },
-      "slack-notifier": { "enabled": true, "env": { "SLACK_WEBHOOK_URL": "" } },
-      "email-sender": { "enabled": true, "env": { "SMTP_HOST": "", "SMTP_USER": "", "SMTP_PASS": "" } },
-      "jira-update-workflow": { "enabled": true }
+      "ruh-jira-ticket-fetcher": { "enabled": true, "env": { "JIRA_API_TOKEN": "", "JIRA_BASE_URL": "", "JIRA_USER": "" } },
+      "ruh-jira-status-updater": { "enabled": true },
+      "ruh-slack-notifier": { "enabled": true, "env": { "SLACK_WEBHOOK_URL": "" } },
+      "ruh-email-sender": { "enabled": true, "env": { "SMTP_HOST": "", "SMTP_USER": "", "SMTP_PASS": "" } },
+      "ruh-jira-update-workflow": { "enabled": true }
     },
     "bindings": [],
     "subagent_config": {},
-    "cron": [{ "schedule": "*/30 * * * *", "skill": "jira-update-workflow" }]
+    "cron": [{ "schedule": "*/30 * * * *", "skill": "ruh-jira-update-workflow" }]
   },
   "deployment": {
     "env_vars": [
@@ -319,6 +324,7 @@ Requirement: "Build a customer support system: classify tickets via LLM, route t
 ```json
 {
   "requirement": {
+    "org": "acme",
     "goal": "Classify support tickets, route to teams, track SLA compliance, and escalate via email",
     "triggers": ["new ticket webhook", "cron every 10 minutes for SLA check"],
     "frequency": "event-driven + */10 * * * *",
@@ -341,7 +347,7 @@ Requirement: "Build a customer support system: classify tickets via LLM, route t
   },
   "agents": [
     {
-      "id": "ticket-classifier",
+      "id": "acme-ticket-classifier",
       "role": "Ingest new tickets, classify via LLM, route to correct team",
       "model": "openai-codex/gpt-5.4",
       "workspace_files": {
@@ -351,7 +357,7 @@ Requirement: "Build a customer support system: classify tickets via LLM, route t
       },
       "skills": [
         {
-          "name": "zendesk-ticket-ingester",
+          "name": "acme-zendesk-ticket-ingester",
           "goal": "Fetch new unclassified tickets from Zendesk",
           "steps": [
             { "order": 1, "action": "Query Zendesk for tickets with status new and no category tag", "tool_type": "api", "details": "GET /api/v2/search?query=status:new -tags:classified" },
@@ -363,7 +369,7 @@ Requirement: "Build a customer support system: classify tickets via LLM, route t
           "source": "new"
         },
         {
-          "name": "llm-ticket-classifier",
+          "name": "acme-llm-ticket-classifier",
           "goal": "Classify a ticket into billing/technical/feature-request/other using LLM",
           "steps": [
             { "order": 1, "action": "Send ticket subject + description to LLM with classification prompt", "tool_type": "llm", "details": "Prompt: classify into billing, technical, feature-request, or other. Return JSON." },
@@ -381,7 +387,7 @@ Requirement: "Build a customer support system: classify tickets via LLM, route t
       ]
     },
     {
-      "id": "sla-tracker",
+      "id": "acme-sla-tracker",
       "role": "Monitor SLA deadlines and detect breaches",
       "model": "openai-codex/gpt-5.4",
       "workspace_files": {
@@ -391,7 +397,7 @@ Requirement: "Build a customer support system: classify tickets via LLM, route t
       },
       "skills": [
         {
-          "name": "sla-breach-detector",
+          "name": "acme-sla-breach-detector",
           "goal": "Check for tickets approaching or past SLA deadline",
           "steps": [
             { "order": 1, "action": "Query DB for tickets where deadline is within 30 minutes or past", "tool_type": "db", "details": "SELECT * FROM tickets WHERE sla_deadline < NOW() + interval '30 min' AND NOT escalated" },
@@ -405,7 +411,7 @@ Requirement: "Build a customer support system: classify tickets via LLM, route t
       ]
     },
     {
-      "id": "notification-agent",
+      "id": "acme-notification-agent",
       "role": "Handle all outbound notifications: Slack messages and escalation emails",
       "model": "openai-codex/gpt-5.4",
       "workspace_files": {
@@ -415,7 +421,7 @@ Requirement: "Build a customer support system: classify tickets via LLM, route t
       },
       "skills": [
         {
-          "name": "slack-team-notifier",
+          "name": "acme-slack-team-notifier",
           "goal": "Send formatted message to a Slack channel",
           "steps": [
             { "order": 1, "action": "Post message with blocks to Slack channel via webhook", "tool_type": "notification", "details": "POST Slack webhook with formatted blocks" }
@@ -426,7 +432,7 @@ Requirement: "Build a customer support system: classify tickets via LLM, route t
           "source": "new"
         },
         {
-          "name": "escalation-emailer",
+          "name": "acme-escalation-emailer",
           "goal": "Send SLA escalation email to team lead",
           "steps": [
             { "order": 1, "action": "Compose escalation email with ticket details and SLA status", "tool_type": "data-pipeline", "details": "Format HTML email from ticket data" },
@@ -446,37 +452,37 @@ Requirement: "Build a customer support system: classify tickets via LLM, route t
   ],
   "workflow": {
     "steps": [
-      { "order": 1, "agent": "ticket-classifier", "skill": "zendesk-ticket-ingester", "trigger": "cron every 5 min" },
-      { "order": 2, "agent": "ticket-classifier", "skill": "llm-ticket-classifier", "trigger": "new tickets from step 1" },
-      { "order": 3, "agent": "ticket-classifier", "skill": "sessions_spawn notification-agent", "trigger": "after classification, notify team via Slack" },
-      { "order": 4, "agent": "sla-tracker", "skill": "sla-breach-detector", "trigger": "cron every 10 min (independent)" },
-      { "order": 5, "agent": "sla-tracker", "skill": "sessions_spawn notification-agent", "trigger": "breaching tickets found, send escalation email" }
+      { "order": 1, "agent": "acme-ticket-classifier", "skill": "acme-zendesk-ticket-ingester", "trigger": "cron every 5 min" },
+      { "order": 2, "agent": "acme-ticket-classifier", "skill": "acme-llm-ticket-classifier", "trigger": "new tickets from step 1" },
+      { "order": 3, "agent": "acme-ticket-classifier", "skill": "sessions_spawn acme-notification-agent", "trigger": "after classification, notify team via Slack" },
+      { "order": 4, "agent": "acme-sla-tracker", "skill": "acme-sla-breach-detector", "trigger": "cron every 10 min (independent)" },
+      { "order": 5, "agent": "acme-sla-tracker", "skill": "sessions_spawn acme-notification-agent", "trigger": "breaching tickets found, send escalation email" }
     ]
   },
   "openclaw_config": {
     "agent_entries": [
-      { "id": "ticket-classifier", "workspace": "~/Desktop/openclaw-automation/ticket-classifier-workspace", "model": "openai-codex/gpt-5.4" },
-      { "id": "sla-tracker", "workspace": "~/Desktop/openclaw-automation/sla-tracker-workspace", "model": "openai-codex/gpt-5.4" },
-      { "id": "notification-agent", "workspace": "~/Desktop/openclaw-automation/notification-agent-workspace", "model": "openai-codex/gpt-5.4" }
+      { "id": "acme-ticket-classifier", "workspace": "~/Desktop/openclaw-automation/acme-ticket-classifier-workspace", "model": "openai-codex/gpt-5.4" },
+      { "id": "acme-sla-tracker", "workspace": "~/Desktop/openclaw-automation/acme-sla-tracker-workspace", "model": "openai-codex/gpt-5.4" },
+      { "id": "acme-notification-agent", "workspace": "~/Desktop/openclaw-automation/acme-notification-agent-workspace", "model": "openai-codex/gpt-5.4" }
     ],
     "skill_entries": {
-      "zendesk-ticket-ingester": { "enabled": true, "env": { "ZENDESK_API_TOKEN": "" } },
-      "llm-ticket-classifier": { "enabled": true, "env": { "OPENAI_API_KEY": "", "CLASSIFICATION_DB_URL": "" } },
-      "sla-breach-detector": { "enabled": true, "env": { "SLA_DB_URL": "" } },
-      "slack-team-notifier": { "enabled": true, "env": { "SLACK_WEBHOOK_URL": "" } },
-      "escalation-emailer": { "enabled": true, "env": { "SMTP_HOST": "", "SMTP_USER": "", "SMTP_PASS": "" } }
+      "acme-zendesk-ticket-ingester": { "enabled": true, "env": { "ZENDESK_API_TOKEN": "" } },
+      "acme-llm-ticket-classifier": { "enabled": true, "env": { "OPENAI_API_KEY": "", "CLASSIFICATION_DB_URL": "" } },
+      "acme-sla-breach-detector": { "enabled": true, "env": { "SLA_DB_URL": "" } },
+      "acme-slack-team-notifier": { "enabled": true, "env": { "SLACK_WEBHOOK_URL": "" } },
+      "acme-escalation-emailer": { "enabled": true, "env": { "SMTP_HOST": "", "SMTP_USER": "", "SMTP_PASS": "" } }
     },
     "bindings": [
-      { "agentId": "ticket-classifier", "match": { "channel": "telegram", "peer": { "kind": "group", "id": "support-ops-group" } } },
+      { "agentId": "acme-ticket-classifier", "match": { "channel": "telegram", "peer": { "kind": "group", "id": "support-ops-group" } } },
       { "agentId": "main", "match": { "channel": "telegram" } }
     ],
     "subagent_config": {
-      "allowAgents": ["ticket-classifier", "sla-tracker", "notification-agent"],
+      "allowAgents": ["acme-ticket-classifier", "acme-sla-tracker", "acme-notification-agent"],
       "maxSpawnDepth": 2
     },
     "cron": [
-      { "schedule": "*/5 * * * *", "agent": "ticket-classifier", "skill": "zendesk-ticket-ingester" },
-      { "schedule": "*/10 * * * *", "agent": "sla-tracker", "skill": "sla-breach-detector" }
+      { "schedule": "*/5 * * * *", "agent": "acme-ticket-classifier", "skill": "acme-zendesk-ticket-ingester" },
+      { "schedule": "*/10 * * * *", "agent": "acme-sla-tracker", "skill": "acme-sla-breach-detector" }
     ]
   },
   "deployment": {
