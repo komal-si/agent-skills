@@ -1,188 +1,281 @@
 ---
 name: skill-factory
 description: >
-  Create a new OpenClaw skill from a structured requirement spec.
-  Trigger after requirement-gatherer produces JSON output. Also
-  trigger when user says "create a skill for X", "build a skill",
-  "add this as a skill", "turn this into a skill", "find a skill
-  that does X", "install a skill for X".
+  Build OpenClaw skills, agents, and workspaces from a structured blueprint.
+  Trigger after requirement-gatherer produces a JSON blueprint. Also trigger
+  when user says "create a skill for X", "build a skill", "add this as a
+  skill", "turn this into a skill", "find a skill that does X",
+  "install a skill for X", "build an agent for X".
 metadata: {"openclaw": {"requires": {"env": []}, "emoji": "⚙️"}}
 ---
 
-# Skill Creator
+# Skill Factory
 
 ## Purpose
 
-Receive a structured requirement spec (from requirement-gatherer or direct text), search for an existing skill, or create a new SKILL.md. Validate, get user approval, push to GitHub, and confirm.
+Receive a structured blueprint from requirement-gatherer (or direct text) and execute it: search for existing skills, create new SKILL.md files, generate agent workspaces, update openclaw.json, validate, get user approval, push to GitHub.
 
-## Flow
-
-```
-Receive structured JSON spec
-  ↓
-Step 1: Search ClawHub
-  Found? → Install → Done
-  ↓ Not found
-Step 2: Search skills.sh (web)
-  Found? → Adapt → Save → Done
-  ↓ Not found
-Step 3: Generate new SKILL.md from template
-  ↓
-Step 4: Validate generated SKILL.md
-  Invalid? → Fix → Re-validate (max 2 retries)
-  ↓ Valid
-Step 5: Show to user for approval
-  Not approved? → Edit per feedback → Re-show
-  ↓ Approved
-Step 6: Push to GitHub + save locally
-  ↓
-Step 7: Confirm to user
-```
+Handles three architecture types: single-skill, multi-skill, multi-agent.
 
 ## Input Handling
 
 Two input modes:
 
-1. **From requirement-gatherer**: Read the structured JSON spec (goal, steps, env_vars, tools, search_query, skill_name_suggestion, category)
-2. **Direct text**: User provides a freeform description. Extract: goal, steps, tools, env vars. Use best-effort parsing.
+1. **From requirement-gatherer**: Read the structured JSON blueprint with requirement, capabilities, architecture, agents[], workflow, openclaw_config, deployment
+2. **Direct text**: User provides a freeform description. Run a quick extraction (goal, tools, steps) and assume single-skill architecture. Use best-effort parsing.
 
-Either way, produce a normalized spec with at minimum: `goal`, `steps`, `skill_name_suggestion`.
+## Flow by Architecture Type
 
-## Step 1: Search ClawHub
+### Single-Skill Flow
 
-```bash
-npx clawhub search "{spec.search_query}"
+```
+Blueprint received (architecture.type = "single-skill")
+  ↓
+Step 1: Search for existing skill
+  Found? → Install → Skip to Step 5
+  ↓ Not found
+Step 2: Generate one SKILL.md from template
+  ↓
+Step 3: Validate
+  ↓
+Step 4: Show to user for approval
+  ↓ Approved
+Step 5: Save locally + push to GitHub
+  ↓
+Step 6: Update openclaw.json skill entry
+  ↓
+Step 7: Confirm to user
 ```
 
-Parse the output. If a result clearly matches the goal (name/description aligns):
+### Multi-Skill Flow
 
+```
+Blueprint received (architecture.type = "multi-skill")
+  ↓
+For EACH skill in agents[0].skills:
+  Step 1: Search for existing skill
+    Found? → Install → Mark as done
+    Not found? → Step 2: Generate SKILL.md
+  Step 3: Validate each generated SKILL.md
+  ↓
+Step 4: Show ALL skills to user for approval
+  ↓ Approved
+Step 5: Save all locally + push all to GitHub (one commit)
+  ↓
+Step 6: Update openclaw.json (all skill entries + cron if any)
+  ↓
+Step 7: Update AGENTS.md with workflow instructions
+  ↓
+Step 8: Confirm to user
+```
+
+### Multi-Agent Flow
+
+```
+Blueprint received (architecture.type = "multi-agent")
+  ↓
+For EACH agent in agents[]:
+  Step A: Create workspace folder
+    Generate: SOUL.md, IDENTITY.md, AGENTS.md, USER.md, TOOLS.md
+  Step B: For each skill in agent.skills:
+    Search → Generate → Validate
+  ↓
+Step 4: Show complete blueprint to user:
+  - All agent workspaces
+  - All SKILL.md files
+  - openclaw.json changes
+  - Bindings and subagent config
+  ↓ Approved
+Step 5: Save all files + push to GitHub
+  ↓
+Step 6: Update openclaw.json:
+  - Add agent entries to agents.list[]
+  - Add skill entries to skills.entries{}
+  - Add bindings
+  - Add subagent allowlists
+  - Add cron entries
+  ↓
+Step 7: Register agents: openclaw agents add {id} --workspace {path}
+  ↓
+Step 8: Confirm to user
+```
+
+## Step Details
+
+### Step 1: Search for Existing Skills
+
+For each skill in the blueprint, search before creating:
+
+**Search ClawHub:**
+```bash
+npx clawhub search "{search_query}"
+```
+
+If a result clearly matches (name/description aligns with skill goal):
 ```bash
 cd ~/.openclaw/workspace && npx clawhub install {slug}
 ```
+Report: "Found existing skill '{name}' on ClawHub. Installing..."
+Mark skill as `source: "clawhub"` and skip generation.
 
-Report to user: "Found existing skill '{name}' on ClawHub. Installing..."
-Done — skip to Step 7.
+**Search skills.sh:**
+If ClawHub has no match, search skills.sh marketplace via web:
+- Search for: `{skill goal keywords}`
+- If found: adapt its SKILL.md to OpenClaw format (add `metadata.openclaw` block)
 
-## Step 2: Search skills.sh
-
-If ClawHub has no match, search the skills.sh marketplace via web:
-- Visit `https://skills.sh`
-- Search for: `{spec.search_query}`
-
-If a matching skill is found:
-- Download or adapt its SKILL.md to OpenClaw format (add `metadata.openclaw` block)
-- Save to `~/.openclaw/workspace/skills/{name}/SKILL.md`
-- Skip to Step 5 for user approval
-
-## Step 3: Generate SKILL.md
+### Step 2: Generate SKILL.md
 
 Read the template from: `{baseDir}/references/skill-template.md`
 
-Fill in every placeholder using the structured spec:
+Fill in placeholders from the blueprint's skill definition:
 
-- **name** ← `spec.skill_name_suggestion`
-- **description** ← goal + trigger phrases (make it pushy — agent undertriggers by default)
-- **metadata.openclaw.requires.env** ← `spec.env_vars_needed[].name`
-- **Steps section** ← one `### Step N` per `spec.steps[]`, with tool-type-specific instructions:
+- **name** ← `skill.name`
+- **description** ← goal + trigger phrases (be aggressive with triggers — agent undertriggers by default)
+- **metadata.openclaw.requires.env** ← `skill.env_vars[].name`
+- **Steps section** ← one `### Step N` per `skill.steps[]`, using tool-type-specific patterns from the template
+- **Rules** ← inferred from step types
+- **Error Handling** ← based on tool types
 
-| tool_type | Step Pattern |
-|-----------|-------------|
-| `api` | Call {endpoint} using {ENV_VAR}. Method: GET/POST. Parse response for {fields}. |
-| `mcp` | Use MCP server {name}, tool {tool_name}. Input: {params}. Handle response. |
-| `cli` | Run: `{command}`. Check exit code. Parse stdout for {data}. |
-| `db` | Query: `{SQL}`. Connection: {ENV_VAR}. Handle empty results. |
-| `file` | Read/write {path}. Format: {JSON/CSV/MD}. Validate before writing. |
-| `browser` | Navigate to {URL}. Extract {selector/data}. Handle page load failures. |
-| `llm` | Prompt: "{instruction}". Model: {model}. Expected output: {format}. |
-| `data-pipeline` | Input: {source}. Transform: {operations}. Output: {destination}. |
-| `notification` | Send to {channel} via {method}. Content: {template}. |
-| `cron` | Schedule: {expression}. On trigger: {action}. |
-| `auth` | Auth flow: {type}. Token storage: {where}. Refresh: {when}. |
-| `infra` | Target: {service}. Action: {operation}. Rollback: {strategy}. |
-| `custom` | {Detailed custom instructions from spec.steps[].details}. |
+### Step 3: Validate
 
-- **Rules section** ← inferred from step types (e.g., confirmation for payments, retry for APIs)
-- **Error Handling** ← based on tool types (timeout, auth failure, invalid data)
-- **Configuration** ← list all env vars with descriptions
-
-## Step 4: Validate
-
-Run the validation script:
+Run validation on each generated SKILL.md:
 
 ```bash
 python3 {baseDir}/scripts/validate_skill.py {skill_path}/SKILL.md
 ```
 
-Checks:
-- name is present and kebab-case
-- description is present and > 20 words
-- metadata is valid JSON (if present)
-- body is under 500 lines
-- no hardcoded secrets (sk-, ghp_, xoxb-, etc.)
+Checks: name present + kebab-case, description > 20 words, body < 500 lines, no hardcoded secrets.
 
-If validation fails → read error, fix issue, re-validate. Max 2 retries.
-If still failing → show user the errors and ask for help.
+If validation fails → fix issue → re-validate. Max 2 retries.
 
-## Step 5: Show to User
+### Step 4: Show to User
 
-Present the generated SKILL.md content to the user:
+**NEVER skip this step.**
 
-"Here is the skill I generated. Please review:"
-[Show full SKILL.md content]
-"Should I save this? Reply YES to proceed, or tell me what to change."
+For single-skill: show the SKILL.md content.
+For multi-skill: show a summary table of all skills, then each SKILL.md.
+For multi-agent: show the full blueprint:
+- Agent list with roles
+- Skills per agent
+- Workspace file summaries
+- openclaw.json changes
+- Bindings
 
-**NEVER skip this step.** Wait for explicit user confirmation.
+"Here is what I will create. Review and reply YES to proceed, or tell me what to change."
 
-## Step 6: Push to GitHub + Save Locally
+### Step 5: Save and Push to GitHub
 
 On user approval:
 
-### Save locally
+**Save skills locally:**
 ```bash
-mkdir -p ~/.openclaw/workspace/skills/{name}
-# Write SKILL.md to ~/.openclaw/workspace/skills/{name}/SKILL.md
-# Write any scripts/ or references/ files
+mkdir -p ~/Desktop/openclaw-automation/agent-skills/skills/{name}
+# Write SKILL.md
 ```
 
-### Push to GitHub
-Use GitHub API via `gh` CLI:
+**Save agent workspaces (multi-agent only):**
+```bash
+mkdir -p ~/Desktop/openclaw-automation/{agent-id}-workspace/skills/{skill-name}
+# Write SOUL.md, IDENTITY.md, AGENTS.md, USER.md, TOOLS.md
+# Write each skill's SKILL.md
+```
 
+**Push to GitHub:**
 ```bash
 cd ~/Desktop/openclaw-automation/agent-skills
-mkdir -p skills/{name}
-# Copy SKILL.md and supporting files to skills/{name}/
-git add skills/{name}/
-git commit -m "feat: add {name} skill"
+git add skills/
+git commit -m "feat: add {skill-names} skill(s)"
 git push origin main
 ```
 
-OpenClaw auto-reloads via file watcher (skills.load.watch: true) — no restart needed.
+### Step 6: Update openclaw.json
 
-## Step 7: Confirm
+Read current `~/.openclaw/openclaw.json` and update:
+
+**For single-skill:**
+- Add skill entry to `skills.entries`
+
+**For multi-skill:**
+- Add all skill entries to `skills.entries`
+- Add cron entries if any
+
+**For multi-agent:**
+- Add agent entries to `agents.list[]`
+- Add all skill entries
+- Add `bindings[]` for channel routing
+- Add `subagents.allowAgents` to relevant agents
+- Add extraDirs if agent workspaces have skills outside default paths
+
+Read `{baseDir}/references/openclaw-config-guide.md` for exact JSON format.
+
+### Step 7: Agent Registration (multi-agent only)
+
+For each new agent:
+```bash
+openclaw agents add {agent-id} --workspace {workspace-path} --model openai-codex/gpt-5.4
+```
+
+### Step 8: Confirm
 
 Report to user:
 
-"Skill '{name}' is ready.
+**Single-skill:**
+```
+Skill '{name}' is ready.
 - Source: {ClawHub / skills.sh / generated}
 - Saved to: GitHub + local workspace
-- ENV vars needed: {list, or 'none'}
-- Category: {category}
-- Trigger with: '{example trigger phrase}'
-Want me to run it now?"
+- ENV vars needed: {list}
+- Trigger with: '{example phrase}'
+Want me to run it now?
+```
+
+**Multi-skill:**
+```
+{N} skills created for {workflow name}:
+- {skill-1}: {goal}
+- {skill-2}: {goal}
+- Orchestrator: {orchestrator-skill}
+All pushed to GitHub. ENV vars needed: {consolidated list}
+Workflow instructions added to AGENTS.md.
+```
+
+**Multi-agent:**
+```
+{N} agents created:
+- {agent-1} ({role}): {N} skills
+- {agent-2} ({role}): {N} skills
+Workspaces: {paths}
+Bindings: {routing summary}
+All registered with OpenClaw. Gateway restart needed.
+Run: openclaw gateway restart
+```
+
+## Workspace Generation (Multi-Agent)
+
+When creating a new agent workspace, read templates from `{baseDir}/references/workspace-template.md` and fill in:
+
+- **SOUL.md** ← from blueprint `workspace_files.SOUL.md`
+- **IDENTITY.md** ← from blueprint `workspace_files.IDENTITY.md`
+- **AGENTS.md** ← from blueprint `workspace_files.AGENTS.md` + standard sections (Session Startup, Memory, Red Lines)
+- **USER.md** ← copy from main workspace (same human operator)
+- **TOOLS.md** ← minimal, agent-specific tool notes
 
 ## Rules
 
-- NEVER skip the user approval step (Step 5)
-- NEVER push to GitHub without explicit user YES
-- NEVER generate a skill longer than 500 lines in the body
-- Always search before generating — reuse before build
-- Secrets must NEVER appear in SKILL.md body — only in ENV declarations
-- If a skill with the same name exists locally, ask user: overwrite or rename?
+- NEVER skip user approval (Step 4)
+- NEVER push to GitHub without explicit YES
+- NEVER generate a skill longer than 500 lines
+- Always search before generating — reuse > build
+- Secrets must NEVER appear in SKILL.md — only ENV var references
+- If a skill with the same name exists, ask: overwrite or rename?
+- If an agent with the same id exists, ask: update or create new?
+- For multi-agent: always set up bindings or sessions_spawn — agents need a way to communicate
 
 ## Error Handling
 
-- ClawHub search fails (network) → continue to Step 2, then Step 3
-- skills.sh unreachable → skip to Step 3
-- Validation fails after 2 retries → show errors, ask user for help
-- GitHub push fails → save locally anyway, warn user about push failure
-- Skill name conflicts → suggest alternative name with number suffix
+- ClawHub search fails → continue to skills.sh → continue to generate
+- skills.sh unreachable → skip to generate
+- Validation fails after 2 retries → show errors, ask user
+- GitHub push fails → save locally, warn about push failure
+- Agent registration fails → show error, provide manual command
+- openclaw.json update fails → show the JSON diff for manual application
