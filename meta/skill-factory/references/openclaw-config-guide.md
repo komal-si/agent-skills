@@ -10,15 +10,15 @@ Add to `agents.list[]`:
 {
   "id": "agent-id",
   "name": "agent-id",
-  "workspace": "/Users/komal/Desktop/openclaw-automation/{agent-id}-workspace",
-  "agentDir": "/Users/komal/.openclaw/agents/{agent-id}/agent",
+  "workspace": "~/Desktop/openclaw-automation/{agent-id}-workspace",
+  "agentDir": "~/.openclaw/agents/{agent-id}/agent",
   "model": "openai-codex/gpt-5.4"
 }
 ```
 
 Or use the CLI:
 ```bash
-openclaw agents add {agent-id} --workspace /Users/komal/Desktop/openclaw-automation/{agent-id}-workspace --model openai-codex/gpt-5.4
+openclaw agents add {agent-id} --workspace ~/Desktop/openclaw-automation/{agent-id}-workspace --model openai-codex/gpt-5.4
 ```
 
 ## Adding Skill Entries
@@ -46,9 +46,9 @@ Add to `skills.load.extraDirs`. Use org-based paths for skill isolation:
 "skills": {
   "load": {
     "extraDirs": [
-      "/Users/komal/Desktop/openclaw-automation/agent-skills/meta",
-      "/Users/komal/Desktop/openclaw-automation/agent-skills/orgs/{org}/skills",
-      "/Users/komal/Desktop/openclaw-automation/agent-skills/skills"
+      "~/Desktop/openclaw-automation/agent-skills/meta",
+      "~/Desktop/openclaw-automation/agent-skills/orgs/{org}/skills",
+      "~/Desktop/openclaw-automation/agent-skills/skills"
     ]
   }
 }
@@ -169,12 +169,12 @@ These appear in Telegram's command menu. They don't auto-route — the agent han
       { "id": "main", "subagents": { "allowAgents": ["classifier", "notifier"] } },
       {
         "id": "classifier",
-        "workspace": "/Users/komal/Desktop/openclaw-automation/classifier-workspace",
+        "workspace": "~/Desktop/openclaw-automation/classifier-workspace",
         "model": "openai-codex/gpt-5.4"
       },
       {
         "id": "notifier",
-        "workspace": "/Users/komal/Desktop/openclaw-automation/notifier-workspace",
+        "workspace": "~/Desktop/openclaw-automation/notifier-workspace",
         "model": "openai-codex/gpt-5.4"
       }
     ]
@@ -186,10 +186,10 @@ These appear in Telegram's command menu. They don't auto-route — the agent han
   "skills": {
     "load": {
       "extraDirs": [
-        "/Users/komal/Desktop/openclaw-automation/agent-skills/meta",
-        "/Users/komal/Desktop/openclaw-automation/agent-skills/skills",
-        "/Users/komal/Desktop/openclaw-automation/classifier-workspace/skills",
-        "/Users/komal/Desktop/openclaw-automation/notifier-workspace/skills"
+        "~/Desktop/openclaw-automation/agent-skills/meta",
+        "~/Desktop/openclaw-automation/agent-skills/skills",
+        "~/Desktop/openclaw-automation/classifier-workspace/skills",
+        "~/Desktop/openclaw-automation/notifier-workspace/skills"
       ]
     },
     "entries": {

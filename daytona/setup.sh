@@ -7,12 +7,12 @@
 #
 # Defaults:
 #   sandbox-name: openclaw
-#   github-repo-url: https://github.com/komal-si/agent-skills.git
+#   github-repo-url: https://github.com/your-org/agent-skills.git
 
 set -euo pipefail
 
 SANDBOX_NAME="${1:-openclaw}"
-REPO_URL="${2:-https://github.com/komal-si/agent-skills.git}"
+REPO_URL="${2:-https://github.com/your-org/agent-skills.git}"
 SNAPSHOT="daytona-medium"
 
 echo "🚀 OpenClaw Daytona Setup"
